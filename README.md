@@ -7,7 +7,7 @@ A **high-performance, real-time collaborative whiteboard application** built wit
 
 ## Live Deployment
 
-* **Frontend (Vercel):** [https://product-brainstrom-588t-3cx83nepf-anmols-projects-0c0aea06.vercel.app/](https://product-brainstrom-588t-3cx83nepf-anmols-projects-0c0aea06.vercel.app/)
+* **Frontend (Vercel):** [https://product-brainstrom-588t-3cx83nepf-anmols-projects-0c0aea06.vercel.app/](https://product-brainstrom-m5oaw6jun-anmols-projects-0c0aea06.vercel.app/)
 
 ---
 
