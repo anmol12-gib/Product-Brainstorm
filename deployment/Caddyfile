@@ -1,0 +1,16 @@
+{$DOMAIN} {
+    encode zstd gzip
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "no-referrer"
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    }
+    @backend path /api /api/* /socket.io /socket.io/*
+    handle @backend {
+        reverse_proxy backend:3000
+    }
+    handle {
+        reverse_proxy frontend:80
+    }
+}

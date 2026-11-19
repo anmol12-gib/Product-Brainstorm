@@ -1,210 +1,70 @@
-import React, { useState } from 'react';
-import { useStore } from '../store/useStore.ts';
-
-export default function TopToolbar() {
-  const { 
-    undo, redo, history = [], redoStack = [], 
-    updateViewport, resetBoard, others 
-  } = useStore();
-  
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [isShareOpen, setIsShareOpen] = useState(false);
-
-  const handleShare = () => {
-    navigator.clipboard.writeText(window.location.href);
-    alert("Link copied! Share with others 🚀");
-  };
-
-  const handleCopyLink = () => {
-    try {
-      const state = useStore.getState();
-      const boardData = state.history;
-      const encoded = encodeURIComponent(JSON.stringify(boardData));
-      const shareUrl = `${window.location.origin}?data=${encoded}`;
-      navigator.clipboard.writeText(shareUrl);
-      alert("Board link copied!");
-    } catch (err) {
-      console.error(err);
-      alert("Failed to copy link");
-    }
-  };
-
-  
-const handleDownload = async () => {
-  try {
-    const htmlToImage = await import("html-to-image");
-
-    const root = document.getElementById("board-root");
-    const svg = root?.querySelector("svg");
-
-    if (!root) return;
-
-    const width = root.clientWidth;
-    const height = root.clientHeight;
-
-    // create final canvas
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d");
-
-    if (!ctx) return;
-
-    // background
-    ctx.fillStyle = "#E7E2D8";
-    ctx.fillRect(0, 0, width, height);
-
-    // 🔹 1. render SVG cleanly
-    if (svg) {
-      const svgData = new XMLSerializer().serializeToString(svg);
-      const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
-      const url = URL.createObjectURL(svgBlob);
-
-      const img = new Image();
-      await new Promise((res) => {
-        img.onload = res;
-        img.src = url;
-      });
-
-      ctx.drawImage(img, 0, 0);
-      URL.revokeObjectURL(url);
-    }
-
-    // 🔹 2. render HTML layer (no border)
-    const htmlLayer = root.querySelector("#board-content") as HTMLElement;
-
-    if (htmlLayer) {
-      const htmlDataUrl = await htmlToImage.toPng(htmlLayer, {
-        cacheBust: true,
-        backgroundColor: "transparent",
-      });
-
-      const img = new Image();
-      await new Promise((res) => {
-        img.onload = res;
-        img.src = htmlDataUrl;
-      });
-
-      ctx.drawImage(img, 0, 0);
-    }
-
-    // download
-    const link = document.createElement("a");
-    link.download = "whiteboard.png";
-    link.href = canvas.toDataURL("image/png");
-    link.click();
-
-  } catch (err) {
-    console.error(err);
-    alert("Download failed");
+import { useState } from 'react';
+import { useStore } from '../store/useStore';
+export default function TopToolbar(){
+  const undo=useStore(s=>s.undo);
+  const redo=useStore(s=>s.redo);
+  const canUndo=useStore(s=>s.history.length>0);
+  const canRedo=useStore(s=>s.redoStack.length>0);
+  const resetBoard=useStore(s=>s.resetBoard);
+  const updateViewport=useStore(s=>s.updateViewport);
+  const onlineCount=useStore(s=>s.others.length+1);
+  const boardId=useStore(s=>s.boardId);
+  const token=useStore(s=>s.token);
+  const role=useStore(s=>s.role);
+  const status=useStore(s=>s.status);
+  const pending=useStore(s=>s.pending);
+  const error=useStore(s=>s.error);
+  const setError=useStore(s=>s.setError);
+  const [shareOpen,setShareOpen]=useState(false);
+  const [busy,setBusy]=useState(false);
+  const makeLink=(key:string)=>`${window.location.origin}/b/${boardId}#token=${encodeURIComponent(key)}`;
+  async function copy(text:string){
+    try{await navigator.clipboard.writeText(text);setError('Link copied to clipboard.');}
+    catch{window.prompt('Copy this link:',text);}
   }
-};
-  return (
-    <header className="fixed top-4 left-4 right-4 h-14 z-[100] flex items-center justify-between pointer-events-none">
-      <div className="bg-white/90 backdrop-blur-md px-4 py-2 rounded-2xl shadow-sm border border-slate-200/50 flex items-center gap-3 pointer-events-auto">
-        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">G</div>
-        <div>
-          <h1 className="text-sm font-bold text-slate-800 leading-none">Product Brainstorm</h1>
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Team Workspace</p>
-        </div>
-      </div>
-
-      <div className="bg-white/90 backdrop-blur-md p-1 rounded-2xl shadow-sm border border-slate-200/50 flex gap-1 pointer-events-auto">
-        <button onClick={undo} disabled={history.length === 0} className="px-3 py-1.5 text-xs font-bold hover:bg-slate-100 rounded-xl disabled:opacity-30">UNDO</button>
-        <button onClick={redo} disabled={redoStack.length === 0} className="px-3 py-1.5 text-xs font-bold hover:bg-slate-100 rounded-xl disabled:opacity-30">REDO</button>
-        <div className="w-px h-4 bg-slate-200 my-auto mx-1" />
-        <button 
-          onClick={() => {
-            if (window.confirm("Are you sure? This will clear everything!")) {
-              resetBoard();
-              updateViewport({ x: 0, y: 0, zoom: 1 });
-            }
-          }} 
-          className="px-3 py-1.5 text-xs font-bold text-red-500 hover:bg-red-50 rounded-xl"
-        >
-          RESET
-        </button>
-      </div>
-
-      <div className="flex items-center gap-3 pointer-events-auto relative">
-        <div className="flex -space-x-2 cursor-pointer transition-transform hover:scale-105" onClick={() => setIsDropdownOpen(!isDropdownOpen)}>
-          {others.slice(0, 3).map((user) => (
-            <div 
-              key={user.id}
-              className="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-bold text-white shadow-sm"
-              style={{ backgroundColor: user.color }}
-            >
-              {user.id.slice(0, 2).toUpperCase()}
-            </div>
-          ))}
-          {others.length > 3 && (
-            <div className="w-8 h-8 rounded-full bg-stone-200 border-2 border-white flex items-center justify-center text-[10px] font-bold text-stone-600">
-              +{others.length - 3}
-            </div>
-          )}
-          {others.length === 0 && (
-            <div className="w-8 h-8 rounded-full border-2 border-white bg-blue-500 flex items-center justify-center text-[10px] font-bold text-white shadow-sm">
-              ME
-            </div>
-          )}
-        </div>
-
-        <button
-          onClick={() => setIsShareOpen(!isShareOpen)}
-          className="bg-blue-600 text-white px-5 py-2 rounded-2xl text-xs font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-colors"
-        >
-          SHARE
-        </button>
-
-        {isShareOpen && (
-          <div className="absolute top-14 right-0 bg-white border rounded-xl shadow-lg w-40 p-2 z-[200]">
-            <button
-              onClick={handleDownload}
-              className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded-lg"
-            >
-              📥 Download
-            </button>
-
-            <button
-              onClick={handleCopyLink}
-              className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 rounded-lg"
-            >
-              📋 Copy Link
-            </button>
-          </div>
-        )}
-
-        {isDropdownOpen && (
-          <div className="absolute top-14 right-0 w-56 bg-white border border-stone-200 shadow-2xl rounded-2xl py-3 z-[110] animate-in fade-in slide-in-from-top-2">
-            <div className="px-4 pb-2 border-b border-stone-100 text-[9px] font-black text-stone-400 uppercase tracking-[0.15em]">
-              Connected Users ({others.length + 1})
-            </div>
-            
-            <div className="max-h-64 overflow-y-auto pt-2">
-              <div className="flex items-center gap-3 px-4 py-2.5 hover:bg-stone-50">
-                <div className="w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center text-[9px] font-black text-white shadow-inner">YOU</div>
-                <div className="flex flex-col">
-                  <span className="text-xs font-bold text-stone-800">Me (Host)</span>
-                  <span className="text-[9px] text-green-500 font-bold uppercase">Online</span>
-                </div>
-              </div>
-
-              {others.map((user) => (
-                <div key={user.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-stone-50">
-                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-[9px] font-black text-white shadow-inner" style={{ backgroundColor: user.color }}>
-                    {user.id.slice(0, 2).toUpperCase()}
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-xs font-semibold text-stone-600 italic">User_{user.id.slice(0, 4)}</span>
-                    <span className="text-[9px] text-stone-400 font-bold">Collaborator</span>
-                  </div>
-                  <div className="w-1.5 h-1.5 rounded-full bg-green-400 ml-auto animate-pulse" />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </header>
-  );
+  async function invite(target:'editor'|'viewer'){
+    if(!window.confirm(`Create a fresh ${target} invitation? Existing ${target} links will stop working.`))return;
+    setBusy(true);
+    try{
+      const response=await fetch(`/api/boards/${boardId}/invites/${target}`,{method:'POST',headers:{Authorization:`Bearer ${token}`}});
+      const result=await response.json();
+      if(!response.ok)throw new Error(result.error||'Unable to create invitation');
+      await copy(makeLink(result.token));
+    }catch(e){setError(e instanceof Error?e.message:'Invitation failed');}
+    finally{setBusy(false);}
+  }
+  async function exportImage(){
+    try{
+      const {toPng}=await import('html-to-image');
+      const root=document.getElementById('board-root');
+      if(!root)return;
+      const img=await toPng(root,{cacheBust:true,backgroundColor:'#E7E2D8',pixelRatio:1});
+      const anchor=document.createElement('a');anchor.download='product-brainstorm.png';anchor.href=img;anchor.click();
+    }catch{setError('Image export failed. Try a smaller board.');}
+  }
+  return <header className="fixed top-4 left-4 right-4 z-[100] flex items-center justify-between pointer-events-none gap-2 max-md:top-2 max-md:left-2 max-md:right-2">
+    <div className="bg-white/95 px-4 py-2 rounded-2xl shadow-sm border border-slate-200 flex gap-3 items-center pointer-events-auto max-md:px-2 max-md:gap-1">
+      <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">P</div>
+      <div><h1 className="text-sm font-bold text-slate-800 leading-none">Product Brainstorm</h1><p className="text-[10px] text-slate-500 max-md:hidden">Board {boardId.slice(0,8)} · {role||'Loading'} · {status}</p></div>
+    </div>
+    <div className="bg-white/95 p-1 rounded-2xl shadow-sm border border-slate-200 flex gap-1 pointer-events-auto max-md:gap-0">
+      <button aria-label="Undo" onClick={undo} disabled={!canUndo||pending>0||role==='viewer'} className="px-3 py-1.5 text-xs font-bold hover:bg-slate-100 rounded-xl disabled:opacity-30">UNDO</button>
+      <button aria-label="Redo" onClick={redo} disabled={!canRedo||pending>0||role==='viewer'} className="px-3 py-1.5 text-xs font-bold hover:bg-slate-100 rounded-xl disabled:opacity-30">REDO</button>
+      {role==='owner'&&<button onClick={()=>{if(window.confirm('Clear this entire shared board? This cannot be undone.')){resetBoard();updateViewport({x:0,y:0,zoom:1});}}} className="px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 rounded-xl">CLEAR</button>}
+    </div>
+    <div className="bg-white/95 px-3 py-2 rounded-2xl shadow-sm border border-slate-200 flex gap-3 items-center pointer-events-auto relative max-md:px-1 max-md:gap-1">
+      <span className="text-xs text-slate-600 max-md:hidden" title="Other users on this board">{onlineCount} online</span>
+      <button onClick={()=>window.location.assign('/')} className="text-xs font-bold text-slate-600 hover:text-blue-600">NEW</button>
+      <button disabled={!boardId} onClick={()=>setShareOpen(s=>!s)} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold">SHARE</button>
+      {shareOpen&&<div className="absolute top-14 right-0 bg-white border rounded-xl shadow-xl w-60 p-2 z-[200] flex flex-col gap-1 text-sm">
+        <button onClick={()=>{void exportImage();setShareOpen(false);}} className="text-left px-3 py-2 hover:bg-slate-100 rounded-lg">Download PNG</button>
+        {role==='owner'?<>
+          <button disabled={busy} onClick={()=>void invite('editor')} className="text-left px-3 py-2 hover:bg-slate-100 rounded-lg">Copy new editing invitation</button>
+          <button disabled={busy} onClick={()=>void invite('viewer')} className="text-left px-3 py-2 hover:bg-slate-100 rounded-lg">Copy new view-only invitation</button>
+          <p className="px-3 text-xs text-amber-700">Keep this owner's browser link private. New invitations revoke previous links of that role.</p>
+        </>:<button onClick={()=>void copy(makeLink(token))} className="text-left px-3 py-2 hover:bg-slate-100 rounded-lg">Copy my {role==='editor'?'editing':'view-only'} link</button>}
+      </div>}
+    </div>
+    {error&&<div role="status" className="fixed top-20 right-4 max-w-sm bg-slate-900 text-white text-xs p-3 shadow-lg rounded-xl pointer-events-auto flex gap-3 items-start"><span>{error}</span><button aria-label="Dismiss message" onClick={()=>setError(null)}>✕</button></div>}
+  </header>;
 }

@@ -1,13 +1,24 @@
 {
-  "name": "whiteboard-backend",
-  "version": "1.0.0",
+  "name": "product-brainstorm-backend",
+  "version": "2.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=22"
+  },
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "migrate": "node migrate.js",
+    "test": "node --test --test-concurrency=1 tests/*.test.js",
+    "check": "node --check server.js && node --check lib/db.js && node --check lib/validation.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^5.2.1",
-    "socket.io": "^4.8.3"
+    "socket.io": "^4.8.3",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.3"
   }
 }

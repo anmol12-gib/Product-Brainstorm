@@ -1,88 +1,43 @@
-import React, { useState } from 'react';
-import { useStore } from '../store/useStore.ts';
-import { useCoordinates } from '../hooks/useCoordinates.ts';
-import type { BoardObject } from '../store/useStore.ts';
-
-export default function InteractionLayer() {
-  const { activeTool, addObject, updateObject, boardObjects, selectedColor, selectedShapeType, broadcastCursor } = useStore();
-  const { screenToWorld } = useCoordinates();
-  const [currentPathId, setCurrentPathId] = useState<string | null>(null);
-
-  const isCreationTool = ['draw', 'shape', 'sticky', 'text'].includes(activeTool);
-
-  const handlePointerDown = (e: React.PointerEvent) => {
-    if (!isCreationTool) return; 
-
-    const worldPos = screenToWorld(e.clientX, e.clientY);
-    const id = crypto.randomUUID();
-    const { socket } = useStore.getState(); // Proper socket access
-
-    let newObj: BoardObject | null = null;
-
-    if (activeTool === 'draw') {
-      newObj = {
-        id, type: 'path', x: 0, y: 0, width: 0, height: 0,
-        color: selectedColor,
-        points: [{ x: worldPos.x, y: worldPos.y }]
-      };
-      setCurrentPathId(id);
-    } else if (activeTool === 'sticky') {
-      newObj = {
-        id, type: 'sticky', x: worldPos.x - 100, y: worldPos.y - 100,
-        width: 200, height: 200, color: selectedColor, text: '', title: '', showHandles: false
-      };
-    } else if (activeTool === 'shape') {
-      newObj = {
-        id, type: 'shape', shapeType: selectedShapeType,
-        x: worldPos.x - 50, y: worldPos.y - 50, width: 100, height: 100,
-        color: selectedColor, showHandles: false
-      };
-    } else if (activeTool === 'text') {
-      newObj = {
-        id, type: 'text', x: worldPos.x - 75, y: worldPos.y - 25,
-        width: 150, height: 50, color: selectedColor, text: '', showHandles: false
-      };
+import { useRef } from 'react';
+import type React from 'react';
+import { useStore, type BoardObject } from '../store/useStore';
+import { useCoordinates } from '../hooks/useCoordinates';
+export default function InteractionLayer(){
+  const activeTool=useStore(s=>s.activeTool);
+  const selectedColor=useStore(s=>s.selectedColor);
+  const selectedShapeType=useStore(s=>s.selectedShapeType);
+  const role=useStore(s=>s.role);
+  const {screenToWorld}=useCoordinates();
+  const drawing=useRef<string|null>(null);
+  const isCreationTool=['draw','shape','sticky','text'].includes(activeTool)&&role!=='viewer';
+  const down=(e:React.PointerEvent<HTMLDivElement>)=>{
+    if(!isCreationTool||e.button!==0)return;
+    const world=screenToWorld(e.clientX,e.clientY);
+    const id=crypto.randomUUID();
+    const base={id,color:selectedColor,showHandles:false};
+    let obj:BoardObject;
+    if(activeTool==='draw'){
+      obj={...base,type:'path',x:0,y:0,width:0,height:0,points:[world]};
+      drawing.current=id;
+      e.currentTarget.setPointerCapture(e.pointerId);
+      useStore.getState().startDraft(obj);
+      return;
     }
-
-    if (newObj) {
-      // Add locally with emit:false because we emit manually below
-      addObject(newObj, false); 
-      if (socket) {
-        socket.emit('object-add', newObj); // Broadcast to others
-      }
-    }
+    if(activeTool==='sticky')obj={...base,type:'sticky',x:world.x-100,y:world.y-100,width:200,height:200,text:'',title:''};
+    else if(activeTool==='text')obj={...base,type:'text',x:world.x-75,y:world.y-25,width:150,height:50,text:''};
+    else obj={...base,type:'shape',shapeType:selectedShapeType,x:world.x-50,y:world.y-50,width:100,height:100};
+    useStore.getState().addObject(obj);
   };
-
-  const handlePointerMove = (e: React.PointerEvent) => {
-    const worldPos = screenToWorld(e.clientX, e.clientY);
-    const { socket } = useStore.getState();
-
-    // Handle Real-time Drawing Sync
-    if (activeTool === 'draw' && currentPathId && e.buttons === 1) {
-      const path = boardObjects.find(obj => obj.id === currentPathId);
-      if (path && path.points) {
-        const newPoints = [...path.points, { x: worldPos.x, y: worldPos.y }];
-        updateObject(currentPathId, { points: newPoints }, false); // Update locally
-        
-        if (socket) {
-          socket.emit('object-update', { id: currentPathId, updates: { points: newPoints } }); // Sync points
-        }
-      }
-    }
-
-    broadcastCursor(worldPos.x, worldPos.y);
+  const move=(e:React.PointerEvent<HTMLDivElement>)=>{
+    if(!drawing.current || activeTool!=='draw')return;
+    const world=screenToWorld(e.clientX,e.clientY);
+    const path=useStore.getState().boardObjects.find(o=>o.id===drawing.current);
+    if(!path?.points||path.points.length>=5000)return;
+    const prev=path.points.at(-1);
+    if(prev&&Math.hypot(world.x-prev.x,world.y-prev.y)<2)return;
+    useStore.getState().previewObject(path.id,{points:[...path.points,world]});
   };
-
-  return (
-
-  <div 
-    className={`absolute inset-0 z-[500] touch-none ${
-      isCreationTool ? 'pointer-events-auto cursor-crosshair' : 'pointer-events-none'
-    }`}
-    onPointerDown={handlePointerDown}
-    onPointerMove={handlePointerMove}
-    onPointerUp={() => setCurrentPathId(null)}
-  />
-);
-  
+  const stop=()=>{if(drawing.current){useStore.getState().finishDraft(drawing.current);drawing.current=null;}};
+  return <div className={`absolute inset-0 z-[500] touch-none ${isCreationTool?'pointer-events-auto cursor-crosshair':'pointer-events-none'}`}
+    onPointerDown={down} onPointerMove={move} onPointerUp={stop} onPointerCancel={stop}/>;
 }
