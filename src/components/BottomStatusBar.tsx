@@ -1,7 +1,7 @@
 import { useStore } from '../store/useStore.ts';
 
 export default function BottomStatusBar() {
-  const { viewport, updateViewport, boardObjects, activeTool } = useStore();
+  const { viewport, updateViewport, boardObjects, activeTool, status, pending } = useStore();
 
   const handleZoom = (delta: number) => {
     const newZoom = Math.min(Math.max(viewport.zoom + delta, 0.1), 5);
@@ -13,15 +13,15 @@ export default function BottomStatusBar() {
       {/* Left: Sync Status & Object Count */}
       <div className="bg-white/90 backdrop-blur-md px-4 py-2 rounded-xl shadow-sm border border-slate-200/50 flex items-center gap-4 pointer-events-auto">
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-          <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Live Syncing</span>
+          <div className={`w-2 h-2 rounded-full ${status === 'connected' ? 'bg-green-500' : 'bg-amber-500'}`} />
+          <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">{status === 'connected' ? (pending > 0 ? `Saving ${pending}…` : 'Saved / Connected') : status}</span>
         </div>
         <div className="w-px h-3 bg-slate-200" />
         <span className="text-[10px] font-bold text-slate-400">{boardObjects.length} Objects</span>
       </div>
 
       {/* CENTER: STEP 3 - ACTIVE TOOL INDICATOR */}
-      <div className="absolute left-1/2 -translate-x-1/2 pointer-events-auto">
+      <div className="absolute left-1/2 -translate-x-1/2 pointer-events-auto max-md:hidden">
         <div className="bg-slate-900 text-white px-6 py-2 rounded-xl shadow-2xl border border-white/10 flex items-center gap-3">
           <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Active Tool</span>
           <div className="w-px h-3 bg-white/20" />
@@ -34,7 +34,7 @@ export default function BottomStatusBar() {
       {/* Right: Zoom & Viewport Offset */}
       <div className="flex items-center gap-2 pointer-events-auto">
         {/* Viewport Offset (Current Position) */}
-        <div className="bg-white/90 backdrop-blur-md px-3 py-2 rounded-xl shadow-sm border border-slate-200/50">
+        <div className="bg-white/90 backdrop-blur-md px-3 py-2 rounded-xl shadow-sm border border-slate-200/50 max-md:hidden">
           <span className="text-[10px] font-black text-slate-500 font-mono">
             OFFSET: {Math.round(viewport.x)}, {Math.round(viewport.y)}
           </span>
@@ -48,7 +48,7 @@ export default function BottomStatusBar() {
         </div>
 
         {/* Live Cursor Coordinates */}
-        <div className="bg-slate-800 text-white px-3 py-2 rounded-xl shadow-lg border border-slate-700">
+        <div className="bg-slate-800 text-white px-3 py-2 rounded-xl shadow-lg border border-slate-700 max-md:hidden">
           <span className="text-[10px] font-bold font-mono tracking-tighter">
             CURSOR: {viewport.currentX} : {viewport.currentY}
           </span>

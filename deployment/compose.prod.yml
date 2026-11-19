@@ -1,0 +1,79 @@
+name: product-brainstorm
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: brainstorm
+      POSTGRES_DB: brainstorm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in deployment/.env}
+    volumes:
+      - brainstorm_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U brainstorm -d brainstorm"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    networks: [private]
+  migrate:
+    build:
+      context: ../whiteboard-backend
+    environment:
+      DATABASE_URL: postgresql://brainstorm:${POSTGRES_PASSWORD}@db:5432/brainstorm
+    command: ["node", "migrate.js"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+    networks: [private]
+  backend:
+    build:
+      context: ../whiteboard-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://brainstorm:${POSTGRES_PASSWORD}@db:5432/brainstorm
+      ALLOWED_ORIGINS: https://${DOMAIN:?Set DOMAIN in deployment/.env}
+      TRUST_PROXY: "1"
+      PORT: "3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 4s
+      retries: 5
+    networks: [private]
+  frontend:
+    build:
+      context: ..
+      dockerfile: Dockerfile.frontend
+    restart: unless-stopped
+    depends_on: [backend]
+    networks: [private]
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_started
+    networks: [private]
+networks:
+  private:
+volumes:
+  brainstorm_db:
+  caddy_data:
+  caddy_config:

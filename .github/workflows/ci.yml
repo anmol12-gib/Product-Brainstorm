@@ -1,0 +1,44 @@
+name: Quality checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc --noEmit -p tsconfig.app.json
+      - run: npm run build
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_USER: brainstorm
+          POSTGRES_DB: brainstorm_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd="pg_isready -U brainstorm -d brainstorm_test" --health-interval=5s --health-timeout=5s --health-retries=10
+    defaults:
+      run:
+        working-directory: whiteboard-backend
+    env:
+      TEST_DATABASE_URL: postgresql://brainstorm:testpassword@localhost:5432/brainstorm_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - run: npm run check
+      - run: npm test

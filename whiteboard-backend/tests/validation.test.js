@@ -1,0 +1,12 @@
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const {randomUUID}=require('node:crypto');
+const {validateObject,validateOperation}=require('../lib/validation');
+const sample=()=>({id:randomUUID(),type:'shape',x:10,y:20,width:100,height:100,color:'#abc123',shapeType:'rect'});
+test('accepts valid board object',()=>assert.equal(validateObject(sample()).type,'shape'));
+test('rejects malicious object with unknown key',()=>assert.throws(()=>validateObject({...sample(),__proto__:'x',foo:1})));
+test('rejects overly large paths',()=>assert.throws(()=>validateObject({...sample(),type:'path',points:Array.from({length:5001},()=>({x:1,y:2}))})));
+test('rejects arbitrary image URLs',()=>assert.throws(()=>validateObject({...sample(),type:'image',imageUrl:'javascript:alert(1)'})));
+test('accepts versioned object update',()=>assert.equal(validateOperation({kind:'update',operationId:randomUUID(),objectId:randomUUID(),expectedVersion:2,patch:{x:4}}).expectedVersion,2));
+test('rejects editing object identity',()=>assert.throws(()=>validateOperation({kind:'update',operationId:randomUUID(),objectId:randomUUID(),expectedVersion:2,patch:{id:randomUUID()}})));
+test('rejects stale version 0',()=>assert.throws(()=>validateOperation({kind:'update',operationId:randomUUID(),objectId:randomUUID(),expectedVersion:0,patch:{x:4}})));
