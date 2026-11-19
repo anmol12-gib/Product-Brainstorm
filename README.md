@@ -1,114 +1,227 @@
-# Product Brainstorm v2 — Persistent collaborative whiteboard
+# Product-Brainstorm
 
-A real-time multi-user whiteboard with **React + TypeScript + Zustand**, **Node.js + Socket.IO**, and **PostgreSQL**. This is a substantial redevelopment of the original browser-based prototype. It retains drawing, shapes, sticky notes, text, images, transforms, presence, export and pan/zoom, while replacing the global Socket.IO relay with **authorized, board-isolated, durable operations**.
+### Real-Time Collaborative Whiteboard | React • TypeScript • Socket.IO • PostgreSQL • AWS
 
-> **Status: deployment-ready source, not a verified production service.** The included source has not been deployed to AWS or browser-tested in this environment. Run the test checklist before trusting real user data. See [`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md).
+[![Live Demo](https://img.shields.io/badge/Live_Demo-Open_Whiteboard-16a34a?style=for-the-badge)](https://productbrainstormv2.duckdns.org/)
+[![React](https://img.shields.io/badge/React-19-149eca?style=flat-square&logo=react)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
+[![Socket.IO](https://img.shields.io/badge/Socket.IO-Realtime-010101?style=flat-square&logo=socketdotio)](https://socket.io/)
+[![AWS](https://img.shields.io/badge/Deployed_on-AWS_EC2-ff9900?style=flat-square&logo=amazonwebservices)](https://aws.amazon.com/ec2/)
+
+**Product-Brainstorm** is a browser-based collaborative whiteboard for teams to brainstorm, sketch, organize ideas, and work together on a shared canvas in real time. It combines responsive canvas interactions with live collaboration and a containerized cloud deployment.
+
+**[Launch the Live Application](https://productbrainstormv2.duckdns.org/)** · **[Source Code](https://github.com/anmol12-gib/Product-Brainstorm)**
+
+> The application is publicly reachable while its AWS server is running. Board-specific collaboration links should be shared only with intended participants.
 
 ## Features
 
-- One URL per board, with random **owner/editor/viewer capability tokens** in URL fragments (the server only receives tokens through authenticated API requests or Socket.IO authentication).
-- Owner-generated editing and view-only invitations, with link rotation. Keep **owner links PRIVATE**. This is **link-based access control**, not signed-in user accounts or full user identity management.
-- Role checks for each mutation; separate Socket.IO rooms; board-scoped presence and cursor positions.
-- PostgreSQL durable objects, ordered operation log, idempotent operation IDs, expected-object-version conflict detection, authoritative snapshots on connection/reconnection.
-- Basic collaborative undo/redo that refuses to overwrite changes made since the recorded operation; whole-board clear is owner-only and not undoable.
-- Final-stroke synchronization instead of sending an ever-growing path every mouse move; one commit for drag/resize/rotation; compressed image previews capped at ~245 KB each.
-- Docker Compose, Caddy HTTPS/WSS reverse proxy, health/readiness endpoints, CI tests, deployment script, optional load test and database backup script.
+- **Real-time collaboration:** Synchronizes whiteboard objects between connected participants using Socket.IO.
+- **Live collaborator cursors:** See other participants' cursor positions while working.
+- **Presence awareness:** Reflects collaborators joining and leaving a board.
+- **Freehand drawing:** Sketch ideas directly on the canvas.
+- **Shapes and diagrams:** Create and manipulate rectangles, circles, triangles, and other supported objects.
+- **Sticky notes and text:** Capture ideas and annotate designs.
+- **Object editing:** Select, move, resize, and modify canvas elements.
+- **Pan and zoom:** Navigate a large workspace smoothly.
+- **Undo and redo:** Reverse or reapply supported editing actions.
+- **Persistent boards (deployed version):** PostgreSQL-backed storage retains board data across page refreshes.
+- **Shareable collaboration:** Open the same board in separate browser sessions to work together.
 
-## Start locally — easiest path
+## Live Deployment
 
-Install **Node.js 22+**, **Docker Desktop** (running), and Git. Open two terminals in the repository root.
+**Production URL:** https://productbrainstormv2.duckdns.org/
 
-**Terminal 1 — PostgreSQL and backend**
+The production application is hosted on **Amazon EC2** and uses **Docker Compose** to coordinate its services. **Caddy** handles HTTPS and reverse-proxy routing, with **DuckDNS** providing the public hostname. The production database runs on **PostgreSQL 16** with a persistent Docker volume.
+
+### Production architecture
+
+```mermaid
+flowchart TD
+    U[Users in web browsers] -->|HTTPS / WebSockets| D[DuckDNS hostname]
+    D --> C[Caddy reverse proxy / TLS]
+    C --> F[Frontend / Nginx]
+    C --> B[Node.js backend / Socket.IO]
+    F -->|API and real-time requests| C
+    B --> P[(PostgreSQL 16)]
+    P --> V[(Persistent Docker volume)]
+    P -.->|Daily pg_dump backup| S[(Private AWS S3 bucket)]
+    subgraph AWS EC2 / Docker Compose
+      C
+      F
+      B
+      P
+      V
+    end
+```
+
+### Infrastructure and operations
+
+| Area | Implementation |
+| --- | --- |
+| Hosting | AWS EC2 (Ubuntu Linux) |
+| Containers | Docker and Docker Compose |
+| Frontend | React, TypeScript, Vite, Nginx |
+| Backend | Node.js, Express, Socket.IO |
+| Database | PostgreSQL 16 with persistent storage |
+| Reverse proxy and HTTPS | Caddy with automated TLS certificate management |
+| Public hostname | DuckDNS |
+| Backups | Daily compressed PostgreSQL dumps uploaded to private, encrypted Amazon S3 |
+| Backup schedule | 02:00 UTC daily (07:30 IST) |
+| Local backup cleanup | Daily cleanup of older local backups |
+| AWS access for backups | EC2 IAM instance profile; no static AWS access keys required |
+
+> **Operational note:** Scheduled backups have been configured and manually tested. Continue monitoring the first unattended run, and perform a test restore before treating backups as fully disaster-recovery verified. The EC2 public IP can change after a stop/start, requiring an update to the DuckDNS record.
+
+## Technology Stack
+
+| Layer | Technologies |
+| --- | --- |
+| UI | React 19, TypeScript, Tailwind CSS, Lucide React |
+| Frontend tooling | Vite 7, ESLint |
+| Client state | Zustand |
+| Real-time communication | Socket.IO client/server |
+| Server | Node.js, Express |
+| Production persistence | PostgreSQL 16 |
+| Infrastructure | AWS EC2, Docker Compose, Nginx, Caddy, Amazon S3, IAM |
+
+## Getting Started (Development)
+
+### Prerequisites
+
+- Node.js and npm
+- Git
+- A modern browser
+
+### 1. Clone the repository
 
 ```bash
-# Create a local PostgreSQL database in Docker (only once)
-docker run --name brainstorm-db -e POSTGRES_USER=brainstorm -e POSTGRES_PASSWORD=localpassword -e POSTGRES_DB=brainstorm -p 127.0.0.1:5432:5432 -v brainstorm-local-db:/var/lib/postgresql/data -d postgres:16-alpine
+git clone https://github.com/anmol12-gib/Product-Brainstorm.git
+cd Product-Brainstorm
+```
 
+### 2. Install frontend dependencies
+
+```bash
+npm install
+```
+
+### 3. Install backend dependencies
+
+```bash
 cd whiteboard-backend
 npm install
-# Linux/macOS bash:
-export DATABASE_URL='postgresql://brainstorm:localpassword@localhost:5432/brainstorm'
-# Windows PowerShell instead:
-# $env:DATABASE_URL='postgresql://brainstorm:localpassword@localhost:5432/brainstorm'
-npm run migrate
+```
+
+### 4. Start the backend
+
+From `whiteboard-backend/`:
+
+```bash
 npm start
 ```
 
-After the first run, to start the existing DB again: `docker start brainstorm-db`. If the container already exists, do not repeat `docker run`.
+### 5. Start the frontend
 
-**Terminal 2 — React frontend**
+In a **second terminal**, from the repository root:
 
 ```bash
-npm ci
 npm run dev
 ```
 
-Open **http://localhost:5173/**. The app creates a new board automatically. Copy the browser's URL somewhere safe: it contains the **owner secret** after `#token=`.
+Open the local URL printed by Vite (typically `http://localhost:5173`). Check your local backend/API configuration if the frontend cannot connect to the Socket.IO server.
 
-Click **SHARE → Copy new editing invitation** and open the copied link in another browser or incognito window. You should be able to draw on either screen and see the changes on both. Refresh: objects should remain saved.
+> **Repository/version note:** The publicly visible `main` branch currently contains `src/`, `public/`, and `whiteboard-backend/`. The AWS deployment described here also uses a `deployment/` directory on the EC2 server. Commit the deployment configuration (without secrets) if you want others to reproduce that exact production setup from GitHub.
 
-**Note:** The localhost Vite server proxies `/api` and `/socket.io` to port 3000. No `VITE_SOCKET_URL` setting is needed for this standard development setup.
+## Production Deployment (AWS EC2)
 
-### Run checks
+The deployed server uses a production Compose file at `deployment/compose.prod.yml` and an environment file at `deployment/.env`.
 
-```bash
-# From repository root
-npm run lint
-npx tsc --noEmit -p tsconfig.app.json
-npm run build
+**Prerequisites:** A configured Ubuntu EC2 instance, Docker Engine, Docker Compose, a domain or subdomain pointing to the server, and inbound HTTP/HTTPS access.
 
-# Backend tests (from whiteboard-backend/)
-npm test
-```
+1. Clone the project onto the EC2 instance and enter the repository directory.
+2. Prepare `deployment/.env` with the production variables required by the Compose configuration, including `DOMAIN` and `POSTGRES_PASSWORD`. Keep this file private and out of version control.
+3. Validate the Compose configuration:
 
-To run the PostgreSQL integration test, set `TEST_DATABASE_URL` to a **disposable test database** before running `npm test`. The test creates boards, checks persistence, conflict rejection, role handling and idempotency. It does not delete those test boards.
+   ```bash
+   docker compose --env-file deployment/.env -f deployment/compose.prod.yml config
+   ```
 
-## Deploy to AWS Lightsail
+4. Start the production services:
 
-Read **[`DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md)**. You will need a paid or free-tier eligible Lightsail instance (billing varies), a domain name, Docker + Compose, and an editable `deployment/.env` file.
+   ```bash
+   docker compose --env-file deployment/.env -f deployment/compose.prod.yml up -d --build
+   ```
 
-The provided production stack runs five services: frontend, backend, PostgreSQL, one-time migration, and Caddy. Only Caddy exposes ports 80/443. PostgreSQL is **not** exposed to the public internet.
+5. Inspect service health:
 
-```bash
-cp deployment/.env.example deployment/.env
-# Edit DOMAIN and POSTGRES_PASSWORD to real values.
-./deployment/deploy.sh
-```
+   ```bash
+   docker compose --env-file deployment/.env -f deployment/compose.prod.yml ps
+   ```
 
-Configure a GitHub Actions production environment to enable the **manual** deploy workflow; it is not active until you explicitly add SSH secrets. See guide.
+6. Open your HTTPS domain and test saving a board, refreshing, and collaborating from two browser sessions.
 
-## Project map
+> Do not commit `.env` files, database dumps, AWS credentials, DuckDNS tokens, or board access links. Avoid exposing the PostgreSQL port publicly. Use a dedicated IAM role with least-privilege access for S3 backup uploads.
 
-| Location | Purpose |
-|---|---|
-| `src/store/useStore.ts` | Socket.IO integration, optimistic state, operation queue, undo/redo |
-| `src/canvas/` | Rendering, pointer handling, live cursors |
-| `src/components/` | UI tools, sharing, export, controls |
-| `whiteboard-backend/server.js` | REST API, origin checks, room auth, Socket.IO events |
-| `whiteboard-backend/lib/db.js` | PostgreSQL persistence, transactions and version conflicts |
-| `whiteboard-backend/lib/validation.js` | Payload validation and size caps |
-| `whiteboard-backend/db/schema.sql` | Initial idempotent DB schema |
-| `whiteboard-backend/tests/` | Unit and optional PostgreSQL integration tests |
-| `deployment/` | Docker Compose, Caddy, backup and deploy helpers |
-| `.github/workflows/` | CI checks and manual production deployment |
-| `scripts/load-test.mjs` | Controlled socket operation benchmark |
+## Database Backups
 
-## Performance experiment (do not invent numbers)
+The production deployment includes `deployment/backup.sh`, which creates a compressed PostgreSQL dump and, when `BACKUP_S3_URI` is configured, uploads it to Amazon S3 with AES-256 server-side encryption.
 
-Create a **separate throwaway board**. Use the editor or owner link's ID/token, then from the project root:
+Example manual backup on the deployed server:
 
 ```bash
-BOARD_ID=your-board-id BOARD_TOKEN=your-token URL=https://your-domain CLIENTS=10 OPERATIONS_PER_CLIENT=5 node scripts/load-test.mjs
+cd ~/Product-Brainstorm
+sudo bash -c 'set -a; source deployment/.env; set +a; bash deployment/backup.sh'
 ```
 
-On PowerShell, use `$env:BOARD_ID='...'` etc. The script creates test objects and reports actual throughput, p50/p95/p99 acknowledgements. It does not establish internet-scale capacity and should be run responsibly.
+The server has a daily cron schedule for backups and a separate schedule for local backup cleanup. S3 backups are not removed by the local cleanup job. Verify backup logs, S3 object retention, and periodic restore procedures as part of ongoing maintenance.
 
-## Known limitations and roadmap
+## Project Layout
 
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for event sequencing, database design and failure modes. See [`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md) for what is deliberately *not* claimed (CRDTs, offline editing, horizontally scaled instances, S3 image storage, login accounts and guaranteed deployment). The initial implementation optimizes for correctness and explainability on a single VPS, not maximum scale.
+```text
+Product-Brainstorm/
+├── public/                  # Static frontend assets
+├── src/                     # React / TypeScript application
+├── whiteboard-backend/      # Node.js / Socket.IO backend
+├── package.json             # Frontend dependencies and scripts
+├── vite.config.ts           # Vite configuration
+└── README.md
 
-## Security reminder
+# Production server also has deployment/ configuration:
+# deployment/compose.prod.yml, deployment/backup.sh, deployment/.env
+```
 
-Do not upload `.env` files, database dumps, SSH keys or owner invitation URLs to GitHub. Anyone with a board's owner link has owner permissions. Use HTTPS and protected storage for production secrets. To revoke editor/viewer access, rotate the corresponding invite link in **SHARE**.
+## How to Use
 
-This edition includes an MIT license file. Confirm the copyright attribution is correct before publishing.
+1. Open the [live application](https://productbrainstormv2.duckdns.org/).
+2. Start or open a board.
+3. Add shapes, sketches, sticky notes, or text.
+4. Share the board's collaboration link with trusted teammates.
+5. Edit together and watch changes synchronize in real time.
+
+## Use Cases
+
+- Product discovery and brainstorming sessions
+- UI/UX wireframing
+- Architecture and workflow sketches
+- Remote workshops and team planning
+- Collaborative teaching and visual explanation
+
+## Security and Availability Notes
+
+- The website is public; access to individual boards depends on the application's link/access model.
+- HTTPS is managed by Caddy, but secure transport does not replace application-level access control.
+- AWS EC2 must remain running for the site to be available.
+- Closing an SSH session, CloudShell, or your laptop does **not** stop the server.
+- A non-static EC2 public IP can change on instance restart, so the DNS record may need updating.
+- AWS infrastructure and S3 storage can incur charges; monitor billing and resource usage.
+- Automatic backups reduce risk but are not a substitute for tested recovery procedures.
+
+## Contributing
+
+Issues, improvements, and pull requests are welcome. Please avoid including secrets or private board data in bug reports.
+
+## License
+
+See the repository's license information before reusing or redistributing the code. The existing README mentions MIT; add a `LICENSE` file to make those terms explicit if that is the intended license.
+
